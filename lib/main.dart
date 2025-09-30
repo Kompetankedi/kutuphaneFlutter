@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'sql_service.dart';
 import 'tr_roman_screen.dart';
-import 'yabanci_roman_screen.dart'; // Yeni oluşturulan yabancı roman sayfasını dahil ediyoruz
+import 'yabanci_roman_screen.dart';
+import 'odunc_islemleri_screen.dart';
 
 // Tüm uygulama boyunca tek bir servis örneği kullanmak için global olarak tanımlıyoruz
 final SqlService sqlService = SqlService();
@@ -110,7 +111,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Text('3 Menü', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            child: Text('Menüler', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ),
 
           // --- TÜRKÇE ROMANLAR ---
@@ -121,27 +122,24 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
             onTap: () => _navigateToScreen(TrRomanScreen(sqlService: sqlService)),
           ),
 
-          // --- YABANCI ROMANLAR (YÖNLENDİRME EKLENDİ) ---
+          // --- YABANCI ROMANLAR ---
           _buildMenuTile(
             title: 'Yabancı Roman İşlemleri',
             subtitle: 'Kitapları gör, ekle, sil ve güncelle (YabanciRoman)',
             icon: Icons.language,
             onTap: () {
-              // YabanciRomanScreen'e doğru yönlendirme
               _navigateToScreen(YabanciRomanScreen(sqlService: sqlService));
             },
           ),
 
-          // --- ÖDÜNÇ İŞLEMLERİ (Placeholder) ---
+          // --- ÖDÜNÇ İŞLEMLERİ (YÖNLENDİRME AKTİF) ---
           _buildMenuTile(
             title: 'Ödünç İşlemleri',
-            subtitle: 'Ödünç verme, alma ve geçmiş (Islemler)',
+            subtitle: 'Ödünç verme ve iade kayıtları (Islemler)',
             icon: Icons.swap_horiz,
             onTap: () {
-              // OduncIslemleriScreen'e yönlendirme buraya gelecek
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Ödünç İşlemleri yakında eklenecek.")),
-              );
+              // Yönlendirme, yeni oluşturulan ekrana yapılıyor.
+              _navigateToScreen(OduncIslemleriScreen(sqlService: sqlService));
             },
           ),
         ],
