@@ -49,7 +49,8 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
 
     try {
       // TABLO ADI DÜZELTİLDİ ve gerekli tüm sütunlar eklendi
-      String query = 'SELECT id, Oisim, Okitap, Osınıf, Oalınmatarihi, Oiadetarih, Oalındımı, Okitapid FROM dbo.Oislemler';
+      String query =
+          'SELECT id, Oisim, Okitap, Osınıf, Oalınmatarihi, Oiadetarih, Oalındımı, Okitapid FROM dbo.Oislemler';
       String jsonResult = await widget.sqlService.getData(query);
 
       List<dynamic> data = jsonDecode(jsonResult);
@@ -77,7 +78,8 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
     if (_currentFilter == OduncFilter.notReturned) {
       statusFilteredList = _oduncKayitlari.where((kayit) {
         // SÜTUN ADI DÜZELTİLDİ: Oalındımı
-        final alindiMi = kayit['Oalındımı']?.toString().toUpperCase().trim() ?? '';
+        final alindiMi =
+            kayit['Oalındımı']?.toString().toUpperCase().trim() ?? '';
         return alindiMi == 'ALINMADI';
       }).toList();
     } else {
@@ -95,9 +97,9 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
           final okitap = kayit['Okitap']?.toString().toLowerCase() ?? '';
           final osinif = kayit['Osınıf']?.toString().toLowerCase() ?? '';
 
-          return oisim.contains(searchText)
-              || okitap.contains(searchText)
-              || osinif.contains(searchText);
+          return oisim.contains(searchText) ||
+              okitap.contains(searchText) ||
+              osinif.contains(searchText);
         }).toList();
       }
     });
@@ -114,10 +116,18 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Kayıt Silme Onayı'),
-        content: const Text('Bu ödünç kaydını kalıcı olarak silmek istediğinizden emin misiniz?'),
+        content: const Text(
+          'Bu ödünç kaydını kalıcı olarak silmek istediğinizden emin misiniz?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hayır')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Evet, Sil')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hayır'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Evet, Sil'),
+          ),
         ],
       ),
     );
@@ -134,9 +144,9 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
         const SnackBar(content: Text('Ödünç kaydı başarıyla silindi.')),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Silme hatası: ${e.toString()}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Silme hatası: ${e.toString()}')));
     }
   }
 
@@ -144,10 +154,8 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
     final shouldRefresh = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AddEditOduncScreen(
-          sqlService: widget.sqlService,
-          kayit: kayit,
-        ),
+        builder: (context) =>
+            AddEditOduncScreen(sqlService: widget.sqlService, kayit: kayit),
       ),
     );
 
@@ -158,11 +166,15 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
 
   // SÜTUN ADLARI DÜZELTİLDİ: Oalınmatarihi, Oiadetarih
   String _formatDate(dynamic dateString, {bool isIade = false}) {
-    if (dateString == null || dateString.toString().trim().isEmpty || dateString.toString().toUpperCase() == 'NULL') {
+    if (dateString == null ||
+        dateString.toString().trim().isEmpty ||
+        dateString.toString().toUpperCase() == 'NULL') {
       return isIade ? 'Bekleniyor' : '—';
     }
     try {
-      return DateFormat('dd.MM.yyyy').format(DateTime.parse(dateString.toString()));
+      return DateFormat(
+        'dd.MM.yyyy',
+      ).format(DateTime.parse(dateString.toString()));
     } catch (e) {
       return dateString.toString();
     }
@@ -170,12 +182,14 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
 
   Color _getStatusColor(String status) {
     String cleanStatus = status.toUpperCase().trim();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     if (cleanStatus == 'ALINDI') {
-      return Colors.green.shade50;
+      return isDark ? Colors.green.shade800 : Colors.green.shade50;
     } else if (cleanStatus == 'ALINMADI') {
-      return Colors.red.shade50;
+      return isDark ? Colors.red.shade800 : Colors.red.shade50;
     }
-    return Colors.white;
+    return isDark ? Colors.grey[850]! : Colors.white;
   }
 
   Widget _buildSearchBar() {
@@ -188,13 +202,16 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
           prefixIcon: const Icon(Icons.search),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
-            icon: const Icon(Icons.clear),
-            onPressed: () => _searchController.clear(),
-          )
+                  icon: const Icon(Icons.clear),
+                  onPressed: () => _searchController.clear(),
+                )
               : null,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: Theme.of(context).inputDecorationTheme.fillColor,
         ),
       ),
     );
@@ -224,7 +241,9 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
           });
         },
         style: SegmentedButton.styleFrom(
-          selectedBackgroundColor: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+          selectedBackgroundColor: Theme.of(
+            context,
+          ).colorScheme.secondary.withOpacity(0.1),
           selectedForegroundColor: Theme.of(context).colorScheme.secondary,
         ),
       ),
@@ -252,12 +271,7 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(120.0),
-          child: Column(
-            children: [
-              _buildSearchBar(),
-              _buildFilterButtons(),
-            ],
-          ),
+          child: Column(children: [_buildSearchBar(), _buildFilterButtons()]),
         ),
       ),
       body: _isLoading
@@ -265,73 +279,100 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
           : _errorMessage.isNotEmpty
           ? Center(child: Text('Hata: $_errorMessage'))
           : _filteredOduncKayitlari.isEmpty
-          ? Center(child: Text(_searchController.text.isNotEmpty ? 'Aramanıza uygun kayıt bulunamadı.' : 'Kayıt bulunamadı.'))
+          ? Center(
+              child: Text(
+                _searchController.text.isNotEmpty
+                    ? 'Aramanıza uygun kayıt bulunamadı.'
+                    : 'Kayıt bulunamadı.',
+              ),
+            )
           : ListView.builder(
-        itemCount: _filteredOduncKayitlari.length,
-        itemBuilder: (context, index) {
-          final kayit = _filteredOduncKayitlari[index];
+              itemCount: _filteredOduncKayitlari.length,
+              itemBuilder: (context, index) {
+                final kayit = _filteredOduncKayitlari[index];
 
-          // SÜTUN ADLARI DÜZELTİLDİ: Oisim, Okitap, Osınıf, Oalınmatarihi, Oiadetarih, Oalındımı
-          String oisim = kayit['Oisim']?.toString() ?? 'Bilinmiyor';
-          String okitap = kayit['Okitap']?.toString() ?? 'Kitap Adı Yok';
-          String osinif = kayit['Osınıf']?.toString() ?? '—';
-          String alindiMi = kayit['Oalındımı']?.toString().toUpperCase().trim() ?? 'Bilinmiyor';
-          String alinmaTarihi = _formatDate(kayit['Oalınmatarihi']);
-          String iadeTarihi = _formatDate(kayit['Oiadedarihi'], isIade: true); // Tarih formatı metodu güncellendi
-          dynamic id = kayit['id'];
+                // SÜTUN ADLARI DÜZELTİLDİ: Oisim, Okitap, Osınıf, Oalınmatarihi, Oiadetarih, Oalındımı
+                String oisim = kayit['Oisim']?.toString() ?? 'Bilinmiyor';
+                String okitap = kayit['Okitap']?.toString() ?? 'Kitap Adı Yok';
+                String osinif = kayit['Osınıf']?.toString() ?? '—';
+                String alindiMi =
+                    kayit['Oalındımı']?.toString().toUpperCase().trim() ??
+                    'Bilinmiyor';
+                String alinmaTarihi = _formatDate(kayit['Oalınmatarihi']);
+                String iadeTarihi = _formatDate(
+                  kayit['Oiadedarihi'],
+                  isIade: true,
+                ); // Tarih formatı metodu güncellendi
+                dynamic id = kayit['id'];
 
-          Widget actionButton;
-          if (alindiMi == 'ALINMADI') {
-            actionButton = IconButton(
-              icon: const Icon(Icons.check_circle, color: Colors.blue),
-              tooltip: 'Kitabı İade Et',
-              onPressed: () => _navigateToAddEdit(kayit: kayit),
-            );
-          } else {
-            actionButton = IconButton(
-              icon: const Icon(Icons.edit, color: Colors.blueGrey),
-              tooltip: 'Kaydı Düzenle',
-              onPressed: () => _navigateToAddEdit(kayit: kayit),
-            );
-          }
+                Widget actionButton;
+                if (alindiMi == 'ALINMADI') {
+                  actionButton = IconButton(
+                    icon: const Icon(Icons.check_circle, color: Colors.blue),
+                    tooltip: 'Kitabı İade Et',
+                    onPressed: () => _navigateToAddEdit(kayit: kayit),
+                  );
+                } else {
+                  actionButton = IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.blueGrey),
+                    tooltip: 'Kaydı Düzenle',
+                    onPressed: () => _navigateToAddEdit(kayit: kayit),
+                  );
+                }
 
-          return Card(
-            color: _getStatusColor(alindiMi),
-            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: ListTile(
-              leading: CircleAvatar(child: Text(id.toString())),
-              title: Text('$okitap', style: const TextStyle(fontWeight: FontWeight.bold)), // Kitap adı
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Öğrenci: $oisim - $osinif'), // Öğrenci ve Sınıf birleştirildi
-                  Text('Veriliş: $alinmaTarihi'),
-                  Text('İade: $iadeTarihi'),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Durum: $alindiMi',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: alindiMi == 'ALINDI' ? Colors.green.shade800 : Colors.red.shade800,
+                return Card(
+                  color: _getStatusColor(alindiMi),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  child: ListTile(
+                    leading: CircleAvatar(child: Text(id.toString())),
+                    title: Text(
+                      '$okitap',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ), // Kitap adı
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Öğrenci: $oisim - $osinif',
+                        ), // Öğrenci ve Sınıf birleştirildi
+                        Text('Veriliş: $alinmaTarihi'),
+                        Text('İade: $iadeTarihi'),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Durum: $alindiMi',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: alindiMi == 'ALINDI'
+                                ? (Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.green.shade300
+                                      : Colors.green.shade800)
+                                : (Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.red.shade300
+                                      : Colors.red.shade800),
+                          ),
+                        ),
+                      ],
                     ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        actionButton,
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _deleteRecord(id),
+                        ),
+                      ],
+                    ),
+                    isThreeLine: true,
                   ),
-                ],
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  actionButton,
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _deleteRecord(id),
-                  ),
-                ],
-              ),
-              isThreeLine: true,
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }

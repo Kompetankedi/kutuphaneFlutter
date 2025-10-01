@@ -44,7 +44,8 @@ class _YabanciRomanScreenState extends State<YabanciRomanScreen> {
 
     try {
       // TABLO ADI DÜZELTİLDİ: dbo.YabanciRoman
-      String query = 'SELECT id, KitapAdi, KitapYazar, KitapNo FROM dbo.YabanciRoman';
+      String query =
+          'SELECT id, KitapAdi, KitapYazar, KitapNo FROM dbo.YabanciRoman';
       String jsonResult = await widget.sqlService.getData(query);
 
       List<dynamic> data = jsonDecode(jsonResult);
@@ -92,10 +93,18 @@ class _YabanciRomanScreenState extends State<YabanciRomanScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Kitap Silme Onayı'),
-        content: const Text('Bu yabancı roman kaydını kalıcı olarak silmek istediğinizden emin misiniz?'),
+        content: const Text(
+          'Bu yabancı roman kaydını kalıcı olarak silmek istediğinizden emin misiniz?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hayır')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Evet, Sil')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hayır'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Evet, Sil'),
+          ),
         ],
       ),
     );
@@ -112,9 +121,9 @@ class _YabanciRomanScreenState extends State<YabanciRomanScreen> {
         const SnackBar(content: Text('Yabancı roman kaydı başarıyla silindi.')),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Silme hatası: ${e.toString()}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Silme hatası: ${e.toString()}')));
     }
   }
 
@@ -144,13 +153,16 @@ class _YabanciRomanScreenState extends State<YabanciRomanScreen> {
           prefixIcon: const Icon(Icons.search),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
-            icon: const Icon(Icons.clear),
-            onPressed: () => _searchController.clear(),
-          )
+                  icon: const Icon(Icons.clear),
+                  onPressed: () => _searchController.clear(),
+                )
               : null,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: Theme.of(context).inputDecorationTheme.fillColor,
         ),
       ),
     );
@@ -185,44 +197,56 @@ class _YabanciRomanScreenState extends State<YabanciRomanScreen> {
           : _errorMessage.isNotEmpty
           ? Center(child: Text('Hata: $_errorMessage'))
           : _filteredRomanlar.isEmpty
-          ? Center(child: Text(_searchController.text.isNotEmpty ? 'Aramanıza uygun kitap bulunamadı.' : 'Kayıt bulunamadı.'))
-          : ListView.builder(
-        itemCount: _filteredRomanlar.length,
-        itemBuilder: (context, index) {
-          final roman = _filteredRomanlar[index];
-
-          // SÜTUN ADLARI DÜZELTİLDİ: KitapAdi, KitapYazar, KitapNo
-          String ad = roman['KitapAdi']?.toString() ?? 'Bilinmiyor';
-          String yazar = roman['KitapYazar']?.toString() ?? 'Bilinmiyor';
-          String kitapNo = roman['KitapNo']?.toString() ?? '—';
-          dynamic id = roman['id'];
-          // String sinif = roman['Ysınıf']?.toString() ?? '—'; // Bu sütun yok, kaldırıldı.
-
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: ListTile(
-              leading: CircleAvatar(child: Text(kitapNo)),
-              title: Text(ad, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text('Yazar: $yazar\nKitap No: $kitapNo'),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.blueGrey),
-                    tooltip: 'Düzenle',
-                    onPressed: () => _navigateToAddEdit(roman: roman),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _deleteYabanciRoman(id),
-                  ),
-                ],
+          ? Center(
+              child: Text(
+                _searchController.text.isNotEmpty
+                    ? 'Aramanıza uygun kitap bulunamadı.'
+                    : 'Kayıt bulunamadı.',
               ),
-              isThreeLine: false,
+            )
+          : ListView.builder(
+              itemCount: _filteredRomanlar.length,
+              itemBuilder: (context, index) {
+                final roman = _filteredRomanlar[index];
+
+                // SÜTUN ADLARI DÜZELTİLDİ: KitapAdi, KitapYazar, KitapNo
+                String ad = roman['KitapAdi']?.toString() ?? 'Bilinmiyor';
+                String yazar = roman['KitapYazar']?.toString() ?? 'Bilinmiyor';
+                String kitapNo = roman['KitapNo']?.toString() ?? '—';
+                dynamic id = roman['id'];
+                // String sinif = roman['Ysınıf']?.toString() ?? '—'; // Bu sütun yok, kaldırıldı.
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  child: ListTile(
+                    leading: CircleAvatar(child: Text(kitapNo)),
+                    title: Text(
+                      ad,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text('Yazar: $yazar\nKitap No: $kitapNo'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blueGrey),
+                          tooltip: 'Düzenle',
+                          onPressed: () => _navigateToAddEdit(roman: roman),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _deleteYabanciRoman(id),
+                        ),
+                      ],
+                    ),
+                    isThreeLine: false,
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }

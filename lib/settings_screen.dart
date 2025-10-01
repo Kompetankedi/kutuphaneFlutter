@@ -1,6 +1,8 @@
 // lib/settings_screen.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'sql_service.dart';
+import 'theme_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   final SqlService sqlService;
@@ -20,7 +22,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     // SqlService'taki mevcut veya varsayılan değerlerle controller'ları başlat
     _ipController = TextEditingController(text: widget.sqlService.currentIp);
-    _portController = TextEditingController(text: widget.sqlService.currentPort);
+    _portController = TextEditingController(
+      text: widget.sqlService.currentPort,
+    );
   }
 
   @override
@@ -43,8 +47,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text(
-                  'Ayarlar başarıyla kaydedildi! Bağlantının güncellenmesi için bir sonraki işleme veya yeniden başlatmaya kadar bekleyin.')),
+            content: Text(
+              'Ayarlar başarıyla kaydedildi! Bağlantının güncellenmesi için bir sonraki işleme veya yeniden başlatmaya kadar bekleyin.',
+            ),
+          ),
         );
         Navigator.pop(context);
       }
@@ -72,6 +78,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const Divider(height: 30),
 
+              // DARK MODE SECTION
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Görünüm Ayarları',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Consumer<ThemeProvider>(
+                        builder: (context, themeProvider, child) {
+                          return SwitchListTile(
+                            title: const Text('Karanlık Mod'),
+                            subtitle: Text(
+                              themeProvider.isDarkMode
+                                  ? 'Karanlık tema aktif'
+                                  : 'Açık tema aktif',
+                            ),
+                            value: themeProvider.isDarkMode,
+                            onChanged: (bool value) {
+                              themeProvider.toggleTheme();
+                            },
+                            secondary: Icon(
+                              themeProvider.isDarkMode
+                                  ? Icons.dark_mode
+                                  : Icons.light_mode,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              const Text(
+                'Sunucu Bağlantı Ayarları',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+
               // IP Adresi Alanı
               TextFormField(
                 controller: _ipController,
@@ -81,7 +136,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.computer),
                 ),
-                keyboardType: TextInputType.text, // IP için metin tipi daha uygun
+                keyboardType:
+                    TextInputType.text, // IP için metin tipi daha uygun
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'IP adresi gereklidir.';

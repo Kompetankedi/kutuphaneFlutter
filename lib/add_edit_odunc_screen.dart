@@ -88,7 +88,7 @@ class _AddEditOduncScreenState extends State<AddEditOduncScreen> {
 
       _alindiMiStatus =
           widget.kayit!['Oalındımı']?.toString().toUpperCase().trim() ??
-              'ALINMADI';
+          'ALINMADI';
     } else {
       _oisimController = TextEditingController();
       _osinifController = TextEditingController();
@@ -125,7 +125,7 @@ class _AddEditOduncScreenState extends State<AddEditOduncScreen> {
         if (isEditing) {
           String currentKitapAdi = widget.kayit!['Okitap']?.toString() ?? '';
           _selectedKitap = _kitaplar.firstWhere(
-                (k) => k['KitapAdi']?.toString() == currentKitapAdi,
+            (k) => k['KitapAdi']?.toString() == currentKitapAdi,
             orElse: () => null!,
           );
         }
@@ -139,9 +139,9 @@ class _AddEditOduncScreenState extends State<AddEditOduncScreen> {
   }
 
   Future<void> _selectDate(
-      BuildContext context, {
-        required bool isAlinmaTarihi,
-      }) async {
+    BuildContext context, {
+    required bool isAlinmaTarihi,
+  }) async {
     DateTime initialDate = isAlinmaTarihi
         ? _alinmaTarihi
         : (_iadeTarihi ?? DateTime.now());
@@ -203,7 +203,7 @@ class _AddEditOduncScreenState extends State<AddEditOduncScreen> {
 
       // 🔹 Burada da düzeltildi: Oiadetarihi → Oiadetarih
       query =
-      '''
+          '''
   UPDATE Oislemler SET  
     Oisim = N'$oisim',          
     Osınıf = N'$osinif',
@@ -221,7 +221,7 @@ class _AddEditOduncScreenState extends State<AddEditOduncScreen> {
           int.tryParse(_selectedKitap!['KitapNo']?.toString() ?? '0') ?? 0;
 
       query =
-      '''
+          '''
         INSERT INTO Oislemler (Oisim, Okitap, Okitapid, Oalınmatarihi, Oalındımı, Osınıf) 
         VALUES (N'$oisim', N'$okitap', $okitapid, N'$alinmaTarihiFormatted', N'ALINMADI', N'$osinif')
       ''';
@@ -281,7 +281,9 @@ class _AddEditOduncScreenState extends State<AddEditOduncScreen> {
       );
     } else {
       return Card(
-        color: Colors.blue.shade50,
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.blue.shade800
+            : Colors.blue.shade50,
         child: ListTile(
           title: Text(
             widget.kayit!['Okitap']?.toString() ?? 'Kitap Adı Yok',
@@ -297,10 +299,10 @@ class _AddEditOduncScreenState extends State<AddEditOduncScreen> {
   }
 
   Widget _buildDateSelector(
-      String label,
-      DateTime? date, {
-        required bool isAlinmaTarihi,
-      }) {
+    String label,
+    DateTime? date, {
+    required bool isAlinmaTarihi,
+  }) {
     String dateText = date != null
         ? DateFormat('dd.MM.yyyy').format(date)
         : 'Tarih Seçilmedi';

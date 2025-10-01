@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'sql_service.dart';
 import 'tr_roman_screen.dart';
 import 'yabanci_roman_screen.dart';
 import 'odunc_islemleri_screen.dart';
 import 'settings_screen.dart'; // EKLENDİ
+import 'theme_provider.dart'; // EKLENDİ
 
 // Tüm uygulama boyunca tek bir servis örneği kullanmak için global olarak tanımlıyoruz
 final SqlService sqlService = SqlService();
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => ThemeProvider(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -17,13 +24,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Okul Kütüphanesi',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MainMenuScreen(),
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          title: 'Okul Kütüphanesi',
+          theme: themeProvider.currentTheme,
+          themeMode: themeProvider.isDarkMode
+              ? ThemeMode.dark
+              : ThemeMode.light,
+          home: const MainMenuScreen(),
+        );
+      },
     );
   }
 }
@@ -78,9 +89,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
   // Ekranlar arası geçiş metodu
   void _navigateToScreen(Widget screen) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => screen),
-    ).then((_) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => screen)).then((_) {
       // Bir ekrandan geri dönüldüğünde gerekirse bağlantı durumunu tekrar kontrol et
       _checkConnection();
     });
@@ -88,17 +99,18 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
   // Ayarlar ekranına yönlendirme
   void _navigateToSettingsScreen() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => SettingsScreen(sqlService: sqlService),
-      ),
-      // Ayarlar ekranından dönüldüğünde bağlantıyı tekrar kontrol et
-    ).then((_) {
-      _checkConnection();
-      setState(() {});
-    });
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (context) => SettingsScreen(sqlService: sqlService),
+          ),
+          // Ayarlar ekranından dönüldüğünde bağlantıyı tekrar kontrol et
+        )
+        .then((_) {
+          _checkConnection();
+          setState(() {});
+        });
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -125,23 +137,43 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           children: [
             // Bağlantı Durumu Kartı (Margin ile üstten ve alttan boşluk veriliyor)
             Card(
-              color: _isConnected ? Colors.green.shade100 : Colors.red.shade100,
-              margin: const EdgeInsets.only(top: 10, bottom: 10), // Üstteki boşluğu 10 yaptı
+              color: _isConnected
+                  ? (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.green.shade800
+                        : Colors.green.shade100)
+                  : (Theme.of(context).brightness == Brightness.dark
+                        ? Colors.red.shade800
+                        : Colors.red.shade100),
+              margin: const EdgeInsets.only(
+                top: 10,
+                bottom: 10,
+              ), // Üstteki boşluğu 10 yaptı
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _isConnected ? 'Bağlantı Durumu: Başarılı' : 'Bağlantı Durumu: Hata',
+                      _isConnected
+                          ? 'Bağlantı Durumu: Başarılı'
+                          : 'Bağlantı Durumu: Hata',
                       style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: _isConnected ? Colors.green.shade800 : Colors.red.shade800),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: _isConnected
+                            ? (Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.green.shade200
+                                  : Colors.green.shade800)
+                            : (Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.red.shade200
+                                  : Colors.red.shade800),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(_connectionMessage),
-                    Text('IP: ${sqlService.currentIp}, Port: ${sqlService.currentPort}'),
+                    Text(
+                      'IP: ${sqlService.currentIp}, Port: ${sqlService.currentPort}',
+                    ),
                     const SizedBox(height: 8),
                     // Bağlantı kurulamadıysa yeniden dene butonu
                     if (!_isConnected)
@@ -163,7 +195,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               title: 'Türk Roman İşlemleri',
               subtitle: 'Kitapları gör, ekle, sil ve güncelle (TrRoman)',
               icon: Icons.menu_book,
-              onTap: () => _navigateToScreen(TrRomanScreen(sqlService: sqlService)),
+              onTap: () =>
+                  _navigateToScreen(TrRomanScreen(sqlService: sqlService)),
             ),
 
             // --- YABANCI ROMANLAR ---
@@ -192,7 +225,12 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     );
   }
 
-  Widget _buildMenuTile({required String title, required String subtitle, required IconData icon, required VoidCallback onTap}) {
+  Widget _buildMenuTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       child: ListTile(
