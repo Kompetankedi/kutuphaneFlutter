@@ -1,8 +1,11 @@
+// odunc_islemleri_screen.dart - TAM KOD (Tablo ve Sütun Adları Düzeltildi, Filtre Korundu)
 import 'package:flutter/material.dart';
 import 'sql_service.dart';
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'add_edit_odunc_screen.dart';
+
+enum OduncFilter { all, notReturned }
 
 class OduncIslemleriScreen extends StatefulWidget {
   final SqlService sqlService;
@@ -14,9 +17,11 @@ class OduncIslemleriScreen extends StatefulWidget {
 
 class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
   List<Map<String, dynamic>> _oduncKayitlari = [];
-  List<Map<String, dynamic>> _filteredOduncKayitlari = []; // Filtrelenmiş liste
+  List<Map<String, dynamic>> _filteredOduncKayitlari = [];
   bool _isLoading = true;
   String _errorMessage = '';
+
+  OduncFilter _currentFilter = OduncFilter.all;
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -24,7 +29,7 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
   void initState() {
     super.initState();
     _fetchOduncKayitlari();
-    _searchController.addListener(_filterRecords); // Arama dinleyicisi
+    _searchController.addListener(_filterRecords);
   }
 
   @override
@@ -33,7 +38,7 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
     super.dispose();
   }
 
-  // --- 1. VERİ ÇEKME İŞLEMİ ---
+  // --- 1. VERİ ÇEKME İŞLEMİ (Tablo ve Sütun Adları Düzeltildi) ---
   Future<void> _fetchOduncKayitlari() async {
     setState(() {
       _isLoading = true;
@@ -43,14 +48,15 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
     });
 
     try {
-      String query = 'SELECT * FROM dbo.Oislemler';
+      // TABLO ADI DÜZELTİLDİ ve gerekli tüm sütunlar eklendi
+      String query = 'SELECT id, Oisim, Okitap, Osınıf, Oalınmatarihi, Oiadetarih, Oalındımı, Okitapid FROM dbo.Oislemler';
       String jsonResult = await widget.sqlService.getData(query);
 
       List<dynamic> data = jsonDecode(jsonResult);
 
       setState(() {
         _oduncKayitlari = data.cast<Map<String, dynamic>>();
-        _filterRecords(); // Veri çekildikten sonra filtrele
+        _filterRecords();
         _isLoading = false;
       });
     } catch (e) {
@@ -61,16 +67,30 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
     }
   }
 
-  // --- 2. ARAMA/FİLTRELEME İŞLEMİ ---
+  // --- 2. FİLTRELEME İŞLEMİ (Sütun Adları Düzeltildi) ---
   void _filterRecords() {
     final String searchText = _searchController.text.toLowerCase();
 
+    // 1. Durum filtresi uygulanır.
+    List<Map<String, dynamic>> statusFilteredList;
+
+    if (_currentFilter == OduncFilter.notReturned) {
+      statusFilteredList = _oduncKayitlari.where((kayit) {
+        // SÜTUN ADI DÜZELTİLDİ: Oalındımı
+        final alindiMi = kayit['Oalındımı']?.toString().toUpperCase().trim() ?? '';
+        return alindiMi == 'ALINMADI';
+      }).toList();
+    } else {
+      statusFilteredList = _oduncKayitlari;
+    }
+
+    // 2. Arama metni filtresi uygulanır.
     setState(() {
       if (searchText.isEmpty) {
-        _filteredOduncKayitlari = _oduncKayitlari;
+        _filteredOduncKayitlari = statusFilteredList;
       } else {
-        // Öğrenci Adı, Kitap Adı ve Sınıf ile arama yapılıyor
-        _filteredOduncKayitlari = _oduncKayitlari.where((kayit) {
+        // SÜTUN ADLARI DÜZELTİLDİ: Oisim, Okitap, Osınıf
+        _filteredOduncKayitlari = statusFilteredList.where((kayit) {
           final oisim = kayit['Oisim']?.toString().toLowerCase() ?? '';
           final okitap = kayit['Okitap']?.toString().toLowerCase() ?? '';
           final osinif = kayit['Osınıf']?.toString().toLowerCase() ?? '';
@@ -83,12 +103,13 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
     });
   }
 
-  // --- 3. SİLME İŞLEMİ ---
+  // --- 3. SİLME İŞLEMİ (Tablo Adı Düzeltildi ve Onay Korundu) ---
   Future<void> _deleteRecord(dynamic idDynamic) async {
     final int id = int.tryParse(idDynamic.toString()) ?? 0;
 
     if (id == 0) return;
 
+    // KAYIT SİLME ONAYI KORUNDU
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -104,6 +125,7 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
     if (confirmed != true) return;
 
     try {
+      // TABLO ADI DÜZELTİLDİ: Oislemler
       String query = 'DELETE FROM Oislemler WHERE id = $id';
       await widget.sqlService.writeData(query);
 
@@ -118,32 +140,28 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
     }
   }
 
-  // --- 4. YÖNLENDİRME (EKLEME/GÜNCELLEME) ---
   void _navigateToAddEdit({Map<String, dynamic>? kayit}) async {
     final shouldRefresh = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => AddEditOduncScreen(
           sqlService: widget.sqlService,
-          kayit: kayit, // Güncelleme için kayıt gönderilir, Yeni kayıt için null
+          kayit: kayit,
         ),
       ),
     );
 
-    // Formdan 'true' sinyali gelirse listeyi yenile
     if (shouldRefresh == true) {
       _fetchOduncKayitlari();
     }
   }
 
-  // --- 5. YARDIMCI METOTLAR (TARİH VE RENK) ---
-
-  String _formatDate(dynamic dateString) {
+  // SÜTUN ADLARI DÜZELTİLDİ: Oalınmatarihi, Oiadetarih
+  String _formatDate(dynamic dateString, {bool isIade = false}) {
     if (dateString == null || dateString.toString().trim().isEmpty || dateString.toString().toUpperCase() == 'NULL') {
-      return '—';
+      return isIade ? 'Bekleniyor' : '—';
     }
     try {
-      // Örnek format: "Oct 9 2023 12:00:00" -> "09.10.2023"
       return DateFormat('dd.MM.yyyy').format(DateTime.parse(dateString.toString()));
     } catch (e) {
       return dateString.toString();
@@ -155,13 +173,10 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
     if (cleanStatus == 'ALINDI') {
       return Colors.green.shade50;
     } else if (cleanStatus == 'ALINMADI') {
-      // Not: İade tarihi geçmişse rengi daha koyu yapmak için burada mantık eklenebilir.
       return Colors.red.shade50;
     }
     return Colors.white;
   }
-
-  // --- 6. UI (WIDGET) OLUŞTURMA ---
 
   Widget _buildSearchBar() {
     return Padding(
@@ -185,6 +200,37 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
     );
   }
 
+  Widget _buildFilterButtons() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      child: SegmentedButton<OduncFilter>(
+        segments: const <ButtonSegment<OduncFilter>>[
+          ButtonSegment<OduncFilter>(
+            value: OduncFilter.all,
+            label: Text('Tümü'),
+            icon: Icon(Icons.list),
+          ),
+          ButtonSegment<OduncFilter>(
+            value: OduncFilter.notReturned,
+            label: Text('Teslim Edilmeyenler'),
+            icon: Icon(Icons.warning_amber),
+          ),
+        ],
+        selected: <OduncFilter>{_currentFilter},
+        onSelectionChanged: (Set<OduncFilter> newSelection) {
+          setState(() {
+            _currentFilter = newSelection.first;
+            _filterRecords();
+          });
+        },
+        style: SegmentedButton.styleFrom(
+          selectedBackgroundColor: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+          selectedForegroundColor: Theme.of(context).colorScheme.secondary,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -195,7 +241,7 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => _navigateToAddEdit(), // Ekleme Formuna Yönlendirme
+            onPressed: () => _navigateToAddEdit(),
             tooltip: 'Yeni Ödünç Kaydı Ekle',
           ),
           IconButton(
@@ -205,8 +251,13 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60.0),
-          child: _buildSearchBar(), // Arama çubuğu eklendi
+          preferredSize: const Size.fromHeight(120.0),
+          child: Column(
+            children: [
+              _buildSearchBar(),
+              _buildFilterButtons(),
+            ],
+          ),
         ),
       ),
       body: _isLoading
@@ -220,15 +271,15 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
         itemBuilder: (context, index) {
           final kayit = _filteredOduncKayitlari[index];
 
+          // SÜTUN ADLARI DÜZELTİLDİ: Oisim, Okitap, Osınıf, Oalınmatarihi, Oiadetarih, Oalındımı
           String oisim = kayit['Oisim']?.toString() ?? 'Bilinmiyor';
           String okitap = kayit['Okitap']?.toString() ?? 'Kitap Adı Yok';
           String osinif = kayit['Osınıf']?.toString() ?? '—';
-          String alindiMi = kayit['Oalındımı']?.toString() ?? 'Bilinmiyor';
+          String alindiMi = kayit['Oalındımı']?.toString().toUpperCase().trim() ?? 'Bilinmiyor';
           String alinmaTarihi = _formatDate(kayit['Oalınmatarihi']);
-          String iadeTarihi = _formatDate(kayit['Oiadetarihi']);
+          String iadeTarihi = _formatDate(kayit['Oiadedarihi'], isIade: true); // Tarih formatı metodu güncellendi
           dynamic id = kayit['id'];
 
-          // İade durumuna göre aksiyon butonu (İade et veya Düzenle)
           Widget actionButton;
           if (alindiMi == 'ALINMADI') {
             actionButton = IconButton(
@@ -249,11 +300,11 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
             margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: ListTile(
               leading: CircleAvatar(child: Text(id.toString())),
-              title: Text('$okitap - $osinif', style: const TextStyle(fontWeight: FontWeight.bold)),
+              title: Text('$okitap', style: const TextStyle(fontWeight: FontWeight.bold)), // Kitap adı
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Öğrenci: $oisim'),
+                  Text('Öğrenci: $oisim - $osinif'), // Öğrenci ve Sınıf birleştirildi
                   Text('Veriliş: $alinmaTarihi'),
                   Text('İade: $iadeTarihi'),
                   const SizedBox(height: 4),

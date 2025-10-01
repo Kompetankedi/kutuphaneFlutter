@@ -1,4 +1,4 @@
-// lib/tr_roman_screen.dart
+// tr_roman_screen.dart - TAM KOD (Tablo ve Sütun Adları Düzeltildi)
 import 'package:flutter/material.dart';
 import 'sql_service.dart';
 import 'dart:convert';
@@ -24,7 +24,7 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
   void initState() {
     super.initState();
     _fetchRomans();
-    _searchController.addListener(_filterRomans);
+    _searchController.addListener(_filterRecords);
   }
 
   @override
@@ -33,7 +33,7 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
     super.dispose();
   }
 
-  // --- 1. VERİ ÇEKME VE FİLTRELEME ---
+  // --- 1. VERİ ÇEKME İŞLEMİ (Tablo Adı Düzeltildi) ---
   Future<void> _fetchRomans() async {
     setState(() {
       _isLoading = true;
@@ -43,25 +43,27 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
     });
 
     try {
-      String query = 'SELECT id, KitapAdi, KitapYazar, KitapNo FROM TrRoman';
+      // TABLO ADI DÜZELTİLDİ: dbo.TrRoman
+      String query = 'SELECT id, KitapAdi, KitapYazar, KitapNo FROM dbo.TrRoman';
       String jsonResult = await widget.sqlService.getData(query);
 
       List<dynamic> data = jsonDecode(jsonResult);
 
       setState(() {
         _romanlar = data.cast<Map<String, dynamic>>();
-        _filterRomans(); // Veri çekildikten sonra ilk filtrelemeyi yap
+        _filterRecords();
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Veri çekilemedi: ${e.toString()}';
+        _errorMessage = 'Türkçe Romanlar çekilemedi: ${e.toString()}';
         _isLoading = false;
       });
     }
   }
 
-  void _filterRomans() {
+  // --- 2. FİLTRELEME (Sütun Adları Düzeltildi) ---
+  void _filterRecords() {
     final String searchText = _searchController.text.toLowerCase();
 
     setState(() {
@@ -69,20 +71,53 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
         _filteredRomanlar = _romanlar;
       } else {
         _filteredRomanlar = _romanlar.where((roman) {
-          final kitapAdi = roman['KitapAdi']?.toString().toLowerCase() ?? '';
+          // SÜTUN ADLARI DÜZELTİLDİ: KitapAdi, KitapYazar
+          final kitapAd = roman['KitapAdi']?.toString().toLowerCase() ?? '';
           final yazar = roman['KitapYazar']?.toString().toLowerCase() ?? '';
-          // *** GÜNCELLEME: Kitap No da aramaya dahil edildi ***
-          final kitapNo = roman['KitapNo']?.toString().toLowerCase() ?? '';
 
-          return kitapAdi.contains(searchText)
-              || yazar.contains(searchText)
-              || kitapNo.contains(searchText);
+          return kitapAd.contains(searchText) || yazar.contains(searchText);
         }).toList();
       }
     });
   }
 
-  // --- 2. EKLEME / GÜNCELLEME İŞLEMİ İÇİN YÖNLENDİRME ---
+  // --- 3. SİLME İŞLEMİ (Tablo Adı Düzeltildi ve Onay Korundu) ---
+  Future<void> _deleteRoman(dynamic idDynamic) async {
+    final int id = int.tryParse(idDynamic.toString()) ?? 0;
+
+    if (id == 0) return;
+
+    // KAYIT SİLME ONAYI
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Kitap Silme Onayı'),
+        content: const Text('Bu Türkçe roman kaydını kalıcı olarak silmek istediğinizden emin misiniz?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hayır')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Evet, Sil')),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      // TABLO ADI DÜZELTİLDİ: TrRoman
+      String query = 'DELETE FROM TrRoman WHERE id = $id';
+      await widget.sqlService.writeData(query);
+
+      _fetchRomans();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Türkçe roman kaydı başarıyla silindi.')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Silme hatası: ${e.toString()}')),
+      );
+    }
+  }
+
   void _navigateToAddEdit({Map<String, dynamic>? roman}) async {
     final shouldRefresh = await Navigator.push(
       context,
@@ -94,55 +129,8 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
       ),
     );
 
-    // Formdan 'true' sinyali gelirse veriyi yenile
     if (shouldRefresh == true) {
       _fetchRomans();
-    }
-  }
-
-  // --- 3. SİLME İŞLEMİ ---
-  Future<void> _deleteRoman(dynamic idDynamic) async {
-    final int id = int.tryParse(idDynamic.toString()) ?? 0;
-
-    if (id == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Hata: Silinecek kayıt ID\'si geçersiz.')),
-      );
-      return;
-    }
-
-    final String silinecekKitapAdi = _romanlar.firstWhere(
-            (r) => r['id']?.toString() == idDynamic.toString(),
-        orElse: () => {'KitapAdi': 'Bu kitabı'}
-    )['KitapAdi']?.toString() ?? 'Bu kitabı';
-
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Silme Onayı'),
-        content: Text('$silinecekKitapAdi silmek istediğinizden emin misiniz?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hayır')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Evet, Sil')),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      String query = 'DELETE FROM TrRoman WHERE id = $id';
-      await widget.sqlService.writeData(query);
-
-      _fetchRomans();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kayıt başarıyla silindi.')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Silme hatası: ${e.toString()}')),
-      );
     }
   }
 
@@ -152,7 +140,7 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
-          hintText: 'Kitap Adı, Yazar veya Kitap No Ara...', // Hint güncellendi
+          hintText: 'Kitap Adı veya Yazar Ara...',
           prefixIcon: const Icon(Icons.search),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
@@ -179,7 +167,7 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () => _navigateToAddEdit(),
-            tooltip: 'Yeni Kitap Ekle',
+            tooltip: 'Yeni Roman Ekle',
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -197,28 +185,32 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
           : _errorMessage.isNotEmpty
           ? Center(child: Text('Hata: $_errorMessage'))
           : _filteredRomanlar.isEmpty
-          ? Center(child: Text(_searchController.text.isNotEmpty ? 'Aramanıza uygun kayıt bulunamadı.' : 'Kayıt bulunamadı.'))
+          ? Center(child: Text(_searchController.text.isNotEmpty ? 'Aramanıza uygun kitap bulunamadı.' : 'Kayıt bulunamadı.'))
           : ListView.builder(
         itemCount: _filteredRomanlar.length,
         itemBuilder: (context, index) {
           final roman = _filteredRomanlar[index];
 
-          String kitapAdi = roman['KitapAdi']?.toString() ?? 'Başlık Yok';
-          String yazar = roman['KitapYazar']?.toString() ?? 'Yazar Bilinmiyor';
+          // SÜTUN ADLARI DÜZELTİLDİ: KitapAdi, KitapYazar, KitapNo
+          String ad = roman['KitapAdi']?.toString() ?? 'Bilinmiyor';
+          String yazar = roman['KitapYazar']?.toString() ?? 'Bilinmiyor';
           String kitapNo = roman['KitapNo']?.toString() ?? '—';
           dynamic id = roman['id'];
+          // String sinif = roman['Tsınıf']?.toString() ?? '—'; // Bu sütun yok, kaldırıldı.
 
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: ListTile(
+              // leading: CircleAvatar(child: Text(id.toString())), // KitapNo daha mantıklı
               leading: CircleAvatar(child: Text(kitapNo)),
-              title: Text(kitapAdi, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text('Yazar: $yazar'),
+              title: Text(ad, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('Yazar: $yazar\nKitap No: $kitapNo'), // Kitap No buraya taşındı
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.blue),
+                    icon: const Icon(Icons.edit, color: Colors.blueGrey),
+                    tooltip: 'Düzenle',
                     onPressed: () => _navigateToAddEdit(roman: roman),
                   ),
                   IconButton(
@@ -227,6 +219,7 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
                   ),
                 ],
               ),
+              isThreeLine: false, // isThreeLine'ı false yapın veya subtitle'ı tek satıra düşürün
             ),
           );
         },
