@@ -91,15 +91,19 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
       if (searchText.isEmpty) {
         _filteredOduncKayitlari = statusFilteredList;
       } else {
-        // SÜTUN ADLARI DÜZELTİLDİ: Oisim, Okitap, Osınıf
+        // SÜTUN ADLARI DÜZELTİLDİ: Oisim, Okitap, Osınıf, id, Okitapid
         _filteredOduncKayitlari = statusFilteredList.where((kayit) {
           final oisim = kayit['Oisim']?.toString().toLowerCase() ?? '';
           final okitap = kayit['Okitap']?.toString().toLowerCase() ?? '';
           final osinif = kayit['Osınıf']?.toString().toLowerCase() ?? '';
+          final id = kayit['id']?.toString().toLowerCase() ?? '';
+          final okitapid = kayit['Okitapid']?.toString().toLowerCase() ?? '';
 
           return oisim.contains(searchText) ||
               okitap.contains(searchText) ||
-              osinif.contains(searchText);
+              osinif.contains(searchText) ||
+              id.contains(searchText) ||
+              okitapid.contains(searchText);
         }).toList();
       }
     });
@@ -198,7 +202,7 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
-          hintText: 'Öğrenci, Kitap veya Sınıf Ara...',
+          hintText: 'ID, Öğrenci, Kitap, Sınıf veya Kitap ID Ara...',
           prefixIcon: const Icon(Icons.search),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(

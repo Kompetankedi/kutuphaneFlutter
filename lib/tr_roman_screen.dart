@@ -72,11 +72,16 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
         _filteredRomanlar = _romanlar;
       } else {
         _filteredRomanlar = _romanlar.where((roman) {
-          // SÜTUN ADLARI DÜZELTİLDİ: KitapAdi, KitapYazar
+          // SÜTUN ADLARI DÜZELTİLDİ: KitapAdi, KitapYazar, id, KitapNo
           final kitapAd = roman['KitapAdi']?.toString().toLowerCase() ?? '';
           final yazar = roman['KitapYazar']?.toString().toLowerCase() ?? '';
+          final id = roman['id']?.toString().toLowerCase() ?? '';
+          final kitapNo = roman['KitapNo']?.toString().toLowerCase() ?? '';
 
-          return kitapAd.contains(searchText) || yazar.contains(searchText);
+          return kitapAd.contains(searchText) ||
+              yazar.contains(searchText) ||
+              id.contains(searchText) ||
+              kitapNo.contains(searchText);
         }).toList();
       }
     });
@@ -147,7 +152,7 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
-          hintText: 'Kitap Adı veya Yazar Ara...',
+          hintText: 'ID, Kitap Adı, Yazar veya Kitap No Ara...',
           prefixIcon: const Icon(Icons.search),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
