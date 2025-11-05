@@ -7,6 +7,9 @@ import 'odunc_islemleri_screen.dart';
 import 'settings_screen.dart'; // EKLENDİ
 import 'theme_provider.dart'; // EKLENDİ
 
+// Tüm uygulama boyunca tek bir servis örneği kullanmak için global olarak tanımlıyoruz
+final SqlService sqlService = SqlService();
+
 void main() {
   runApp(
     ChangeNotifierProvider(
@@ -44,15 +47,12 @@ class MainMenuScreen extends StatefulWidget {
 }
 
 class _MainMenuScreenState extends State<MainMenuScreen> {
-  late SqlService sqlService; // SqlService'i burada tanımlıyoruz
   bool _isConnected = false;
   String _connectionMessage = "Bağlantı kontrol ediliyor...";
 
   @override
   void initState() {
     super.initState();
-    // SqlService'i initState içinde başlatıyoruz
-    sqlService = SqlService();
     // Başlangıçta ayarlar yüklenecek ve bağlantı kontrol edilecek.
     _checkConnection();
   }
@@ -60,22 +60,30 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   // Veritabanı bağlantısını kontrol eden metot
   Future<void> _checkConnection() async {
     setState(() {
-      _connectionMessage = "Bağlantı kuruluyor...";
+      _connectionMessage = "Bağlantı kontrol ediliyor...";
       _isConnected = false;
     });
 
-    final String? errorMessage = await sqlService.connect();
-
-    if (mounted) {
-      setState(() {
-        if (errorMessage == null) {
-          _isConnected = true;
-          _connectionMessage = "Bağlantı Başarılı!";
-        } else {
+    try {
+      // Bağlantıdan önce loadSettings otomatik çağrılacak.
+      bool success = await sqlService.connect();
+      if (mounted) {
+        setState(() {
+          _isConnected = success;
+          if (_isConnected) {
+            _connectionMessage = "Bağlantı Başarılı!";
+          } else {
+            _connectionMessage = "Bağlantı Kurulamadı! Ayarları kontrol edin.";
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
           _isConnected = false;
-          _connectionMessage = "Bağlantı Hatası: $errorMessage";
-        }
-      });
+          _connectionMessage = "Bağlantı Hatası: ${e.toString()}";
+        });
+      }
     }
   }
 

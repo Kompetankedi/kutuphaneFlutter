@@ -124,8 +124,10 @@ class _AddEditOduncScreenState extends State<AddEditOduncScreen> {
 
         if (isEditing) {
           String currentKitapAdi = widget.kayit!['Okitap']?.toString() ?? '';
-          var matchingBooks = _kitaplar.where((k) => k['KitapAdi']?.toString() == currentKitapAdi);
-          _selectedKitap = matchingBooks.isNotEmpty ? matchingBooks.first : null;
+          _selectedKitap = _kitaplar.firstWhere(
+            (k) => k['KitapAdi']?.toString() == currentKitapAdi,
+            orElse: () => null!,
+          );
         }
       });
     } catch (e) {
