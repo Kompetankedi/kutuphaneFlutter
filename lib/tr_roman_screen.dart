@@ -1,4 +1,4 @@
-// tr_roman_screen.dart - TAM KOD (Tablo ve Sütun Adları Düzeltildi)
+// tr_roman_screen.dart - Otomatik Kaydırma Eklendi
 import 'package:flutter/material.dart';
 import 'sql_service.dart';
 import 'dart:convert';
@@ -19,6 +19,7 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
   String _errorMessage = '';
 
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController(); // KAYDIRMA KONTROLCÜSÜ
 
   @override
   void initState() {
@@ -30,22 +31,18 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose(); // KONTROLCÜYÜ TEMİZLE
     super.dispose();
   }
 
-  // --- 1. VERİ ÇEKME İŞLEMİ (Tablo Adı Düzeltildi) ---
-  Future<void> _fetchRomans() async {
+  Future<void> _fetchRomans({bool scrollToBottom = false}) async {
     setState(() {
       _isLoading = true;
       _errorMessage = '';
-      _romanlar = [];
-      _filteredRomanlar = [];
     });
 
     try {
-      // TABLO ADI DÜZELTİLDİ: dbo.TrRoman
-      String query =
-          'SELECT id, KitapAdi, KitapYazar, KitapNo FROM dbo.TrRoman';
+      String query = 'SELECT id, KitapAdi, KitapYazar, KitapNo FROM dbo.TrRoman ORDER BY id'; // ID'ye göre sırala
       String jsonResult = await widget.sqlService.getData(query);
 
       List<dynamic> data = jsonDecode(jsonResult);
@@ -55,6 +52,17 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
         _filterRecords();
         _isLoading = false;
       });
+
+      // EĞER YENİ KAYIT EKLENDİYSE LİSTENİN SONUNA GİT
+      if (scrollToBottom && _scrollController.hasClients) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        });
+      }
     } catch (e) {
       setState(() {
         _errorMessage = 'Türkçe Romanlar çekilemedi: ${e.toString()}';
@@ -63,7 +71,6 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
     }
   }
 
-  // --- 2. FİLTRELEME (Sütun Adları Düzeltildi) ---
   void _filterRecords() {
     final String searchText = _searchController.text.toLowerCase();
 
@@ -72,7 +79,6 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
         _filteredRomanlar = _romanlar;
       } else {
         _filteredRomanlar = _romanlar.where((roman) {
-          // SÜTUN ADLARI DÜZELTİLDİ: KitapAdi, KitapYazar, id, KitapNo
           final kitapAd = roman['KitapAdi']?.toString().toLowerCase() ?? '';
           final yazar = roman['KitapYazar']?.toString().toLowerCase() ?? '';
           final id = roman['id']?.toString().toLowerCase() ?? '';
@@ -87,13 +93,11 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
     });
   }
 
-  // --- 3. SİLME İŞLEMİ (Tablo Adı Düzeltildi ve Onay Korundu) ---
   Future<void> _deleteRoman(dynamic idDynamic) async {
     final int id = int.tryParse(idDynamic.toString()) ?? 0;
 
     if (id == 0) return;
 
-    // KAYIT SİLME ONAYI
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -117,11 +121,10 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
     if (confirmed != true) return;
 
     try {
-      // TABLO ADI DÜZELTİLDİ: TrRoman
       String query = 'DELETE FROM TrRoman WHERE id = $id';
       await widget.sqlService.writeData(query);
 
-      _fetchRomans();
+      _fetchRomans(); // Silme sonrası listeyi yenile
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Türkçe roman kaydı başarıyla silindi.')),
       );
@@ -132,6 +135,7 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
     }
   }
 
+  // YENİ KİTAP EKLENDİĞİNDE LİSTENİN SONUNA GİTMEYİ TETİKLE
   void _navigateToAddEdit({Map<String, dynamic>? roman}) async {
     final shouldRefresh = await Navigator.push(
       context,
@@ -142,7 +146,9 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
     );
 
     if (shouldRefresh == true) {
-      _fetchRomans();
+      // Eğer yeni kitap eklendiyse (yani düzenleme modunda değilse)
+      // `scrollToBottom` parametresini true gönder.
+      _fetchRomans(scrollToBottom: roman == null);
     }
   }
 
@@ -186,7 +192,7 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _fetchRomans,
+            onPressed: _fetchRomans, // Normal yenileme
             tooltip: 'Yenile',
           ),
         ],
@@ -208,16 +214,15 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
               ),
             )
           : ListView.builder(
+              controller: _scrollController, // KONTROLCÜYÜ ATA
               itemCount: _filteredRomanlar.length,
               itemBuilder: (context, index) {
                 final roman = _filteredRomanlar[index];
 
-                // SÜTUN ADLARI DÜZELTİLDİ: KitapAdi, KitapYazar, KitapNo
                 String ad = roman['KitapAdi']?.toString() ?? 'Bilinmiyor';
                 String yazar = roman['KitapYazar']?.toString() ?? 'Bilinmiyor';
                 String kitapNo = roman['KitapNo']?.toString() ?? '—';
                 dynamic id = roman['id'];
-                // String sinif = roman['Tsınıf']?.toString() ?? '—'; // Bu sütun yok, kaldırıldı.
 
                 return Card(
                   margin: const EdgeInsets.symmetric(
@@ -225,7 +230,6 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
                     vertical: 4,
                   ),
                   child: ListTile(
-                    // leading: CircleAvatar(child: Text(id.toString())), // KitapNo daha mantıklı
                     leading: CircleAvatar(child: Text(kitapNo)),
                     title: Text(
                       ad,
@@ -233,7 +237,7 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
                     ),
                     subtitle: Text(
                       'Yazar: $yazar\nKitap No: $kitapNo',
-                    ), // Kitap No buraya taşındı
+                    ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -248,8 +252,7 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
                         ),
                       ],
                     ),
-                    isThreeLine:
-                        false, // isThreeLine'ı false yapın veya subtitle'ı tek satıra düşürün
+                    isThreeLine: false,
                   ),
                 );
               },
