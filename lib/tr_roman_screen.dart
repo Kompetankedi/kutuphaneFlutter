@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'sql_service.dart';
 import 'dart:convert';
+import 'dart:math';
 import 'add_edit_roman_screen.dart';
 
 class TrRomanScreen extends StatefulWidget {
@@ -17,8 +18,8 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
   List<Map<String, dynamic>> _filteredRomanlar = [];
   bool _isLoading = true;
   String _errorMessage = '';
-
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -30,6 +31,7 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -207,52 +209,105 @@ class _TrRomanScreenState extends State<TrRomanScreen> {
                     : 'Kayıt bulunamadı.',
               ),
             )
-          : ListView.builder(
-              itemCount: _filteredRomanlar.length,
-              itemBuilder: (context, index) {
-                final roman = _filteredRomanlar[index];
+          : Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    itemCount: _filteredRomanlar.length,
+                    itemBuilder: (context, index) {
+                      final roman = _filteredRomanlar[index];
 
-                // SÜTUN ADLARI DÜZELTİLDİ: KitapAdi, KitapYazar, KitapNo
-                String ad = roman['KitapAdi']?.toString() ?? 'Bilinmiyor';
-                String yazar = roman['KitapYazar']?.toString() ?? 'Bilinmiyor';
-                String kitapNo = roman['KitapNo']?.toString() ?? '—';
-                dynamic id = roman['id'];
-                // String sinif = roman['Tsınıf']?.toString() ?? '—'; // Bu sütun yok, kaldırıldı.
+                      // SÜTUN ADLARI DÜZELTİLDİ: KitapAdi, KitapYazar, KitapNo
+                      String ad = roman['KitapAdi']?.toString() ?? 'Bilinmiyor';
+                      String yazar =
+                          roman['KitapYazar']?.toString() ?? 'Bilinmiyor';
+                      String kitapNo = roman['KitapNo']?.toString() ?? '—';
+                      dynamic id = roman['id'];
+                      // String sinif = roman['Tsınıf']?.toString() ?? '—'; // Bu sütun yok, kaldırıldı.
 
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  child: ListTile(
-                    // leading: CircleAvatar(child: Text(id.toString())), // KitapNo daha mantıklı
-                    leading: CircleAvatar(child: Text(kitapNo)),
-                    title: Text(
-                      ad,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      'Yazar: $yazar\nKitap No: $kitapNo',
-                    ), // Kitap No buraya taşındı
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blueGrey),
-                          tooltip: 'Düzenle',
-                          onPressed: () => _navigateToAddEdit(roman: roman),
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteRoman(id),
+                        child: ListTile(
+                          // leading: CircleAvatar(child: Text(id.toString())), // KitapNo daha mantıklı
+                          leading: CircleAvatar(child: Text(kitapNo)),
+                          title: Text(
+                            ad,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            'Yazar: $yazar\nKitap No: $kitapNo',
+                          ), // Kitap No buraya taşındı
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.edit,
+                                  color: Colors.blueGrey,
+                                ),
+                                tooltip: 'Düzenle',
+                                onPressed: () =>
+                                    _navigateToAddEdit(roman: roman),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () => _deleteRoman(id),
+                              ),
+                            ],
+                          ),
+                          isThreeLine:
+                              false, // isThreeLine'ı false yapın veya subtitle'ı tek satıra düşürün
                         ),
-                      ],
-                    ),
-                    isThreeLine:
-                        false, // isThreeLine'ı false yapın veya subtitle'ı tek satıra düşürün
+                      );
+                    },
                   ),
-                );
-              },
+                ),
+                // Butonu en alta ekleyelim
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      // En yüksek ID'ye sahip öğeyi bul
+                      if (_filteredRomanlar.isNotEmpty) {
+                        // _filteredRomanlar zaten ID'ye göre sıralı değilse, en yüksek ID'yi bul
+                        int maxId = _filteredRomanlar
+                            .map((e) => e['id'] as int)
+                            .reduce(max);
+                        int index = _filteredRomanlar.indexWhere(
+                          (element) => element['id'] == maxId,
+                        );
+
+                        // Liste sıralı değilse, önce sıralayalım
+                        List<Map<String, dynamic>> sortedList = List.from(
+                          _filteredRomanlar,
+                        );
+                        sortedList.sort(
+                          (a, b) => (a['id'] as int).compareTo(b['id'] as int),
+                        );
+                        index = sortedList.indexWhere(
+                          (element) => element['id'] == maxId,
+                        );
+
+                        // En alta kaydır
+                        _scrollController.animateTo(
+                          _scrollController.position.maxScrollExtent,
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeInOut,
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.arrow_downward),
+                    label: const Text('Son Eklenene Git'),
+                  ),
+                ),
+              ],
             ),
     );
   }
