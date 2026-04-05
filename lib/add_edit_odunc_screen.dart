@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'sql_service.dart';
 import 'dart:convert';
+import 'kitap_sec_screen.dart';
 import 'package:intl/intl.dart';
 
 class AddEditOduncScreen extends StatefulWidget {
@@ -124,10 +125,13 @@ class _AddEditOduncScreenState extends State<AddEditOduncScreen> {
 
         if (isEditing) {
           String currentKitapAdi = widget.kayit!['Okitap']?.toString() ?? '';
-          _selectedKitap = _kitaplar.firstWhere(
-            (k) => k['KitapAdi']?.toString() == currentKitapAdi,
-            orElse: () => null!,
-          );
+          try {
+            _selectedKitap = _kitaplar.firstWhere(
+              (k) => k['KitapAdi']?.toString() == currentKitapAdi,
+            );
+          } catch (_) {
+            _selectedKitap = null;
+          }
         }
       });
     } catch (e) {
@@ -257,27 +261,66 @@ class _AddEditOduncScreenState extends State<AddEditOduncScreen> {
         );
       }
 
-      return DropdownButtonFormField<Map<String, dynamic>>(
-        decoration: const InputDecoration(
-          labelText: 'Verilecek Kitap Seçin',
-          border: OutlineInputBorder(),
-        ),
-        value: _selectedKitap,
-        hint: const Text('Kitap Seçiniz'),
-        items: _kitaplar.map((kitap) {
-          return DropdownMenuItem<Map<String, dynamic>>(
-            value: kitap,
-            child: Text(
-              '${kitap['KitapAdi']} (No: ${kitap['KitapNo']}) - ${kitap['KitapTuru'] == 'TrRoman' ? 'T' : 'Y'}',
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Verilecek Kitap',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: 8),
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () async {
+              final secilen = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => KitapSecScreen(kitaplar: _kitaplar),
+                ),
+              );
+              if (secilen != null) {
+                setState(() {
+                  _selectedKitap = secilen as Map<String, dynamic>;
+                });
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.book, color: Theme.of(context).primaryColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _selectedKitap == null
+                          ? 'Kitap seçmek için tıklayın'
+                          : '${_selectedKitap!['KitapAdi']} (No: ${_selectedKitap!['KitapNo']})',
+                      style: TextStyle(
+                        color: _selectedKitap == null
+                            ? Colors.grey
+                            : Colors.black,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right),
+                ],
+              ),
             ),
-          );
-        }).toList(),
-        onChanged: (newValue) {
-          setState(() {
-            _selectedKitap = newValue;
-          });
-        },
-        validator: (value) => value == null ? 'Lütfen bir kitap seçin.' : null,
+          ),
+          if (_selectedKitap == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Text(
+                'Lütfen bir kitap seçin.',
+                style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+              ),
+            ),
+        ],
       );
     } else {
       return Card(
