@@ -1,6 +1,7 @@
 // yabanci_roman_screen.dart - Otomatik Kaydırma Eklendi
 import 'package:flutter/material.dart';
 import 'sql_service.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'add_edit_yabanci_roman_screen.dart';
 
@@ -14,83 +15,105 @@ class YabanciRomanScreen extends StatefulWidget {
 
 class _YabanciRomanScreenState extends State<YabanciRomanScreen> {
   List<Map<String, dynamic>> _romanlar = [];
-  List<Map<String, dynamic>> _filteredRomanlar = [];
   bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  int _pageSize = 30;
+  int _offset = 0;
   String _errorMessage = '';
 
   final TextEditingController _searchController = TextEditingController();
-  final ScrollController _scrollController = ScrollController(); // KAYDIRMA KONTROLCÜSÜ
+  final ScrollController _scrollController = ScrollController();
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
-    _fetchRomans();
-    _searchController.addListener(_filterRecords);
+    _searchController.addListener(_onSearchChanged);
+    _scrollController.addListener(_onScroll);
+    _refreshRomans();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
-    _scrollController.dispose(); // KONTROLCÜYÜ TEMİZLE
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _fetchRomans({bool scrollToBottom = false}) async {
+  Future<void> _refreshRomans() async {
     setState(() {
       _isLoading = true;
       _errorMessage = '';
+      _romanlar = [];
+      _offset = 0;
+      _hasMore = true;
+    });
+
+    await _loadRomansPage();
+  }
+
+  Future<void> _loadRomansPage() async {
+    if (!_hasMore || _isLoadingMore) return;
+
+    setState(() {
+      _isLoadingMore = true;
     });
 
     try {
-      String query = 'SELECT id, KitapAdi, KitapYazar, KitapNo FROM dbo.YabanciRoman ORDER BY id'; // ID'ye göre sırala
-      String jsonResult = await widget.sqlService.getData(query);
+      final String searchText = _searchController.text.trim();
+      final String escapedSearch = searchText.replaceAll("'", "''");
+      final String whereClause = escapedSearch.isEmpty
+          ? ''
+          : "WHERE KitapAdi LIKE '%$escapedSearch%' OR KitapYazar LIKE '%$escapedSearch%' OR CAST(id AS VARCHAR(20)) LIKE '%$escapedSearch%' OR KitapNo LIKE '%$escapedSearch%'";
 
-      List<dynamic> data = jsonDecode(jsonResult);
+      final String query =
+          'SELECT id, KitapAdi, KitapYazar, KitapNo FROM dbo.YabanciRoman $whereClause ORDER BY id OFFSET $_offset ROWS FETCH NEXT $_pageSize ROWS ONLY';
+      final String jsonResult = await widget.sqlService.getData(query);
+
+      final List<dynamic> data = jsonDecode(jsonResult);
+      final List<Map<String, dynamic>> pageData = data
+          .cast<Map<String, dynamic>>();
 
       setState(() {
-        _romanlar = data.cast<Map<String, dynamic>>();
-        _filterRecords();
+        _romanlar.addAll(pageData);
+        _offset += pageData.length;
+        if (pageData.length < _pageSize) {
+          _hasMore = false;
+        }
         _isLoading = false;
       });
-
-      // EĞER YENİ KAYIT EKLENDİYSE LİSTENİN SONUNA GİT
-      if (scrollToBottom && _scrollController.hasClients) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        });
-      }
     } catch (e) {
       setState(() {
         _errorMessage = 'Yabancı Romanlar çekilemedi: ${e.toString()}';
         _isLoading = false;
+        _hasMore = false;
+      });
+    } finally {
+      setState(() {
+        _isLoadingMore = false;
       });
     }
   }
 
-  void _filterRecords() {
-    final String searchText = _searchController.text.toLowerCase();
-
-    setState(() {
-      if (searchText.isEmpty) {
-        _filteredRomanlar = _romanlar;
-      } else {
-        _filteredRomanlar = _romanlar.where((roman) {
-          final kitapAd = roman['KitapAdi']?.toString().toLowerCase() ?? '';
-          final yazar = roman['KitapYazar']?.toString().toLowerCase() ?? '';
-          final id = roman['id']?.toString().toLowerCase() ?? '';
-          final kitapNo = roman['KitapNo']?.toString().toLowerCase() ?? '';
-
-          return kitapAd.contains(searchText) ||
-              yazar.contains(searchText) ||
-              id.contains(searchText) ||
-              kitapNo.contains(searchText);
-        }).toList();
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        _refreshRomans();
       }
     });
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 120 &&
+        !_isLoading &&
+        !_isLoadingMore &&
+        _hasMore) {
+      _loadRomansPage();
+    }
   }
 
   Future<void> _deleteYabanciRoman(dynamic idDynamic) async {
@@ -121,10 +144,9 @@ class _YabanciRomanScreenState extends State<YabanciRomanScreen> {
     if (confirmed != true) return;
 
     try {
-      String query = 'DELETE FROM YabanciRoman WHERE id = $id';
+      final String query = 'DELETE FROM YabanciRoman WHERE id = $id';
       await widget.sqlService.writeData(query);
-
-      _fetchRomans();
+      _refreshRomans();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Yabancı roman kaydı başarıyla silindi.')),
       );
@@ -135,7 +157,6 @@ class _YabanciRomanScreenState extends State<YabanciRomanScreen> {
     }
   }
 
-  // YENİ KİTAP EKLENDİĞİNDE LİSTENİN SONUNA GİTMEYİ TETİKLE
   void _navigateToAddEdit({Map<String, dynamic>? roman}) async {
     final shouldRefresh = await Navigator.push(
       context,
@@ -148,7 +169,7 @@ class _YabanciRomanScreenState extends State<YabanciRomanScreen> {
     );
 
     if (shouldRefresh == true) {
-      _fetchRomans(scrollToBottom: roman == null);
+      _refreshRomans();
     }
   }
 
@@ -163,7 +184,10 @@ class _YabanciRomanScreenState extends State<YabanciRomanScreen> {
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.clear),
-                  onPressed: () => _searchController.clear(),
+                  onPressed: () {
+                    _searchController.clear();
+                    _refreshRomans();
+                  },
                 )
               : null,
           border: OutlineInputBorder(
@@ -192,7 +216,7 @@ class _YabanciRomanScreenState extends State<YabanciRomanScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => _fetchRomans(),
+            onPressed: _refreshRomans,
             tooltip: 'Yenile',
           ),
         ],
@@ -201,60 +225,74 @@ class _YabanciRomanScreenState extends State<YabanciRomanScreen> {
           child: _buildSearchBar(),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage.isNotEmpty
-          ? Center(child: Text('Hata: $_errorMessage'))
-          : _filteredRomanlar.isEmpty
-          ? Center(
-              child: Text(
-                _searchController.text.isNotEmpty
-                    ? 'Aramanıza uygun kitap bulunamadı.'
-                    : 'Kayıt bulunamadı.',
+      body: RefreshIndicator(
+        onRefresh: _refreshRomans,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMessage.isNotEmpty
+            ? Center(child: Text('Hata: $_errorMessage'))
+            : _romanlar.isEmpty
+            ? Center(
+                child: Text(
+                  _searchController.text.isNotEmpty
+                      ? 'Aramanıza uygun kitap bulunamadı.'
+                      : 'Kayıt bulunamadı.',
+                ),
+              )
+            : ListView.builder(
+                controller: _scrollController,
+                cacheExtent: 1000.0,
+                itemCount: _romanlar.length + (_hasMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == _romanlar.length) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+
+                  final roman = _romanlar[index];
+                  final String ad =
+                      roman['KitapAdi']?.toString() ?? 'Bilinmiyor';
+                  final String yazar =
+                      roman['KitapYazar']?.toString() ?? 'Bilinmiyor';
+                  final String kitapNo = roman['KitapNo']?.toString() ?? '—';
+                  final dynamic id = roman['id'];
+
+                  return Card(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: ListTile(
+                      leading: CircleAvatar(child: Text(kitapNo)),
+                      title: Text(
+                        ad,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text('Yazar: $yazar\nKitap No: $kitapNo'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.edit,
+                              color: Colors.blueGrey,
+                            ),
+                            tooltip: 'Düzenle',
+                            onPressed: () => _navigateToAddEdit(roman: roman),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteYabanciRoman(id),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
-            )
-          : ListView.builder(
-              controller: _scrollController, // KONTROLCÜYÜ ATA
-              itemCount: _filteredRomanlar.length,
-              itemBuilder: (context, index) {
-                final roman = _filteredRomanlar[index];
-
-                String ad = roman['KitapAdi']?.toString() ?? 'Bilinmiyor';
-                String yazar = roman['KitapYazar']?.toString() ?? 'Bilinmiyor';
-                String kitapNo = roman['KitapNo']?.toString() ?? '—';
-                dynamic id = roman['id'];
-
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  child: ListTile(
-                    leading: CircleAvatar(child: Text(kitapNo)),
-                    title: Text(
-                      ad,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text('Yazar: $yazar\nKitap No: $kitapNo'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blueGrey),
-                          tooltip: 'Düzenle',
-                          onPressed: () => _navigateToAddEdit(roman: roman),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteYabanciRoman(id),
-                        ),
-                      ],
-                    ),
-                    isThreeLine: false,
-                  ),
-                );
-              },
-            ),
+      ),
     );
   }
 }

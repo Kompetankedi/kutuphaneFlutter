@@ -1,6 +1,7 @@
 // odunc_islemleri_screen.dart - TAM KOD (Tablo ve Sütun Adları Düzeltildi, Filtre Korundu)
 import 'package:flutter/material.dart';
 import 'sql_service.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'add_edit_odunc_screen.dart';
@@ -17,105 +18,118 @@ class OduncIslemleriScreen extends StatefulWidget {
 
 class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
   List<Map<String, dynamic>> _oduncKayitlari = [];
-  List<Map<String, dynamic>> _filteredOduncKayitlari = [];
   bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  int _pageSize = 50;
+  int _offset = 0;
   String _errorMessage = '';
 
   OduncFilter _currentFilter = OduncFilter.all;
-
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
-    _fetchOduncKayitlari();
-    _searchController.addListener(_filterRecords);
+    _searchController.addListener(_onSearchChanged);
+    _scrollController.addListener(_onScroll);
+    _refreshOduncKayitlari();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  // --- 1. VERİ ÇEKME İŞLEMİ (Tablo ve Sütun Adları Düzeltildi) ---
-  Future<void> _fetchOduncKayitlari() async {
+  Future<void> _refreshOduncKayitlari() async {
     setState(() {
       _isLoading = true;
       _errorMessage = '';
       _oduncKayitlari = [];
-      _filteredOduncKayitlari = [];
+      _offset = 0;
+      _hasMore = true;
+    });
+
+    await _loadOduncKayitlariPage();
+  }
+
+  Future<void> _loadOduncKayitlariPage() async {
+    if (!_hasMore || _isLoadingMore) return;
+
+    setState(() {
+      _isLoadingMore = true;
     });
 
     try {
-      // TABLO ADI DÜZELTİLDİ ve gerekli tüm sütunlar eklendi
-      String query =
-          'SELECT id, Oisim, Okitap, Osınıf, Oalınmatarihi, Oiadetarih, Oalındımı, Okitapid FROM dbo.Oislemler';
-      String jsonResult = await widget.sqlService.getData(query);
+      final String searchText = _searchController.text.trim();
+      final String escapedSearch = searchText.replaceAll("'", "''");
 
-      List<dynamic> data = jsonDecode(jsonResult);
+      final String statusCondition = _currentFilter == OduncFilter.notReturned
+          ? "WHERE UPPER(LTRIM(RTRIM(Oalındımı))) = 'ALINMADI'"
+          : '';
+
+      final String searchCondition = escapedSearch.isEmpty
+          ? ''
+          : "${statusCondition.isEmpty ? 'WHERE' : 'AND'} (Oisim LIKE '%$escapedSearch%' OR Okitap LIKE '%$escapedSearch%' OR Osınıf LIKE '%$escapedSearch%' OR CAST(id AS VARCHAR(20)) LIKE '%$escapedSearch%' OR Okitapid LIKE '%$escapedSearch%')";
+
+      final String query =
+          'SELECT id, Oisim, Okitap, Osınıf, Oalınmatarihi, Oiadetarih, Oalındımı, Okitapid FROM dbo.Oislemler $statusCondition $searchCondition ORDER BY id OFFSET $_offset ROWS FETCH NEXT $_pageSize ROWS ONLY';
+      final String jsonResult = await widget.sqlService.getData(query);
+
+      final List<dynamic> data = jsonDecode(jsonResult);
+      final List<Map<String, dynamic>> pageData = data
+          .cast<Map<String, dynamic>>();
 
       setState(() {
-        _oduncKayitlari = data.cast<Map<String, dynamic>>();
-        _filterRecords();
+        _oduncKayitlari.addAll(pageData);
+        _offset += pageData.length;
+        if (pageData.length < _pageSize) {
+          _hasMore = false;
+        }
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
         _errorMessage = 'Ödünç Kayıtları çekilemedi: ${e.toString()}';
         _isLoading = false;
+        _hasMore = false;
+      });
+    } finally {
+      setState(() {
+        _isLoadingMore = false;
       });
     }
   }
 
-  // --- 2. FİLTRELEME İŞLEMİ (Sütun Adları Düzeltildi) ---
-  void _filterRecords() {
-    final String searchText = _searchController.text.toLowerCase();
-
-    // 1. Durum filtresi uygulanır.
-    List<Map<String, dynamic>> statusFilteredList;
-
-    if (_currentFilter == OduncFilter.notReturned) {
-      statusFilteredList = _oduncKayitlari.where((kayit) {
-        // SÜTUN ADI DÜZELTİLDİ: Oalındımı
-        final alindiMi =
-            kayit['Oalındımı']?.toString().toUpperCase().trim() ?? '';
-        return alindiMi == 'ALINMADI';
-      }).toList();
-    } else {
-      statusFilteredList = _oduncKayitlari;
-    }
-
-    // 2. Arama metni filtresi uygulanır.
-    setState(() {
-      if (searchText.isEmpty) {
-        _filteredOduncKayitlari = statusFilteredList;
-      } else {
-        // SÜTUN ADLARI DÜZELTİLDİ: Oisim, Okitap, Osınıf, id, Okitapid
-        _filteredOduncKayitlari = statusFilteredList.where((kayit) {
-          final oisim = kayit['Oisim']?.toString().toLowerCase() ?? '';
-          final okitap = kayit['Okitap']?.toString().toLowerCase() ?? '';
-          final osinif = kayit['Osınıf']?.toString().toLowerCase() ?? '';
-          final id = kayit['id']?.toString().toLowerCase() ?? '';
-          final okitapid = kayit['Okitapid']?.toString().toLowerCase() ?? '';
-
-          return oisim.contains(searchText) ||
-              okitap.contains(searchText) ||
-              osinif.contains(searchText) ||
-              id.contains(searchText) ||
-              okitapid.contains(searchText);
-        }).toList();
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        _refreshOduncKayitlari();
       }
     });
   }
 
-  // --- 3. SİLME İŞLEMİ (Tablo Adı Düzeltildi ve Onay Korundu) ---
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 120 &&
+        !_isLoading &&
+        !_isLoadingMore &&
+        _hasMore) {
+      _loadOduncKayitlariPage();
+    }
+  }
+
   Future<void> _deleteRecord(dynamic idDynamic) async {
     final int id = int.tryParse(idDynamic.toString()) ?? 0;
 
     if (id == 0) return;
 
-    // KAYIT SİLME ONAYI KORUNDU
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -139,11 +153,10 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
     if (confirmed != true) return;
 
     try {
-      // TABLO ADI DÜZELTİLDİ: Oislemler
-      String query = 'DELETE FROM Oislemler WHERE id = $id';
+      final String query = 'DELETE FROM Oislemler WHERE id = $id';
       await widget.sqlService.writeData(query);
 
-      _fetchOduncKayitlari();
+      _refreshOduncKayitlari();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Ödünç kaydı başarıyla silindi.')),
       );
@@ -164,11 +177,10 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
     );
 
     if (shouldRefresh == true) {
-      _fetchOduncKayitlari();
+      _refreshOduncKayitlari();
     }
   }
 
-  // SÜTUN ADLARI DÜZELTİLDİ: Oalınmatarihi, Oiadetarih
   String _formatDate(dynamic dateString, {bool isIade = false}) {
     if (dateString == null ||
         dateString.toString().trim().isEmpty ||
@@ -207,7 +219,10 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.clear),
-                  onPressed: () => _searchController.clear(),
+                  onPressed: () {
+                    _searchController.clear();
+                    _refreshOduncKayitlari();
+                  },
                 )
               : null,
           border: OutlineInputBorder(
@@ -241,8 +256,8 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
         onSelectionChanged: (Set<OduncFilter> newSelection) {
           setState(() {
             _currentFilter = newSelection.first;
-            _filterRecords();
           });
+          _refreshOduncKayitlari();
         },
         style: SegmentedButton.styleFrom(
           selectedBackgroundColor: Theme.of(
@@ -269,7 +284,7 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _fetchOduncKayitlari,
+            onPressed: _refreshOduncKayitlari,
             tooltip: 'Yenile',
           ),
         ],
@@ -278,105 +293,117 @@ class _OduncIslemleriScreenState extends State<OduncIslemleriScreen> {
           child: Column(children: [_buildSearchBar(), _buildFilterButtons()]),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage.isNotEmpty
-          ? Center(child: Text('Hata: $_errorMessage'))
-          : _filteredOduncKayitlari.isEmpty
-          ? Center(
-              child: Text(
-                _searchController.text.isNotEmpty
-                    ? 'Aramanıza uygun kayıt bulunamadı.'
-                    : 'Kayıt bulunamadı.',
-              ),
-            )
-          : ListView.builder(
-              itemCount: _filteredOduncKayitlari.length,
-              itemBuilder: (context, index) {
-                final kayit = _filteredOduncKayitlari[index];
+      body: RefreshIndicator(
+        onRefresh: _refreshOduncKayitlari,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMessage.isNotEmpty
+            ? Center(child: Text('Hata: $_errorMessage'))
+            : _oduncKayitlari.isEmpty
+            ? Center(
+                child: Text(
+                  _searchController.text.isNotEmpty
+                      ? 'Aramanıza uygun kayıt bulunamadı.'
+                      : 'Kayıt bulunamadı.',
+                ),
+              )
+            : ListView.builder(
+                controller: _scrollController,
+                cacheExtent: 1000.0,
+                itemCount: _oduncKayitlari.length + (_hasMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == _oduncKayitlari.length) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
 
-                // SÜTUN ADLARI DÜZELTİLDİ: Oisim, Okitap, Osınıf, Oalınmatarihi, Oiadetarih, Oalındımı
-                String oisim = kayit['Oisim']?.toString() ?? 'Bilinmiyor';
-                String okitap = kayit['Okitap']?.toString() ?? 'Kitap Adı Yok';
-                String osinif = kayit['Osınıf']?.toString() ?? '—';
-                String alindiMi =
-                    kayit['Oalındımı']?.toString().toUpperCase().trim() ??
-                    'Bilinmiyor';
-                String alinmaTarihi = _formatDate(kayit['Oalınmatarihi']);
-                String iadeTarihi = _formatDate(
-                  kayit['Oiadedarihi'],
-                  isIade: true,
-                ); // Tarih formatı metodu güncellendi
-                dynamic id = kayit['id'];
-
-                Widget actionButton;
-                if (alindiMi == 'ALINMADI') {
-                  actionButton = IconButton(
-                    icon: const Icon(Icons.check_circle, color: Colors.blue),
-                    tooltip: 'Kitabı İade Et',
-                    onPressed: () => _navigateToAddEdit(kayit: kayit),
+                  final kayit = _oduncKayitlari[index];
+                  final String oisim =
+                      kayit['Oisim']?.toString() ?? 'Bilinmiyor';
+                  final String okitap =
+                      kayit['Okitap']?.toString() ?? 'Kitap Adı Yok';
+                  final String osinif = kayit['Osınıf']?.toString() ?? '—';
+                  final String alindiMi =
+                      kayit['Oalındımı']?.toString().toUpperCase().trim() ??
+                      'Bilinmiyor';
+                  final String alinmaTarihi = _formatDate(
+                    kayit['Oalınmatarihi'],
                   );
-                } else {
-                  actionButton = IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.blueGrey),
-                    tooltip: 'Kaydı Düzenle',
-                    onPressed: () => _navigateToAddEdit(kayit: kayit),
+                  final String iadeTarihi = _formatDate(
+                    kayit['Oiadetarih'],
+                    isIade: true,
                   );
-                }
+                  final dynamic id = kayit['id'];
 
-                return Card(
-                  color: _getStatusColor(alindiMi),
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  child: ListTile(
-                    leading: CircleAvatar(child: Text(id.toString())),
-                    title: Text(
-                      '$okitap',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ), // Kitap adı
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Öğrenci: $oisim - $osinif',
-                        ), // Öğrenci ve Sınıf birleştirildi
-                        Text('Veriliş: $alinmaTarihi'),
-                        Text('İade: $iadeTarihi'),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Durum: $alindiMi',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: alindiMi == 'ALINDI'
-                                ? (Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? Colors.green.shade300
-                                      : Colors.green.shade800)
-                                : (Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? Colors.red.shade300
-                                      : Colors.red.shade800),
+                  Widget actionButton;
+                  if (alindiMi == 'ALINMADI') {
+                    actionButton = IconButton(
+                      icon: const Icon(Icons.check_circle, color: Colors.blue),
+                      tooltip: 'Kitabı İade Et',
+                      onPressed: () => _navigateToAddEdit(kayit: kayit),
+                    );
+                  } else {
+                    actionButton = IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.blueGrey),
+                      tooltip: 'Kaydı Düzenle',
+                      onPressed: () => _navigateToAddEdit(kayit: kayit),
+                    );
+                  }
+
+                  return Card(
+                    color: _getStatusColor(alindiMi),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: ListTile(
+                      leading: CircleAvatar(child: Text(id.toString())),
+                      title: Text(
+                        okitap,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Öğrenci: $oisim - $osinif'),
+                          Text('Veriliş: $alinmaTarihi'),
+                          Text('İade: $iadeTarihi'),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Durum: $alindiMi',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: alindiMi == 'ALINDI'
+                                  ? (Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Colors.green.shade300
+                                        : Colors.green.shade800)
+                                  : (Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Colors.red.shade300
+                                        : Colors.red.shade800),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          actionButton,
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteRecord(id),
+                          ),
+                        ],
+                      ),
+                      isThreeLine: true,
                     ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        actionButton,
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteRecord(id),
-                        ),
-                      ],
-                    ),
-                    isThreeLine: true,
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
+      ),
     );
   }
 }
